@@ -1,8 +1,9 @@
 use std::env;
-
+use std::process::exit;
 use zodiac::strtol;
 
-use std::process::exit;
+const REGS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
+static mut REG_IDX: usize = 0;
 
 enum TokenType {
     Num, // number literal
@@ -10,13 +11,13 @@ enum TokenType {
 
 #[derive(Default, Debug)]
 struct Token {
-    ty: i32, // token type
-    val: i32, // number literal
-    input: String, // token string (for error reporting)
+    ty: i32,          // token type
+    val: i32,         // number literal
+    err_info: String, // token string (for error reporting)
 }
 
 fn tokenize(mut p: String) -> Vec<Token> {
-    // tokenized input is stored to this vec.
+    // tokenized err_info is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
 
     let org = p.clone();
@@ -31,7 +32,7 @@ fn tokenize(mut p: String) -> Vec<Token> {
         if c == '+' || c == '-' {
             let token = Token {
                 ty: c as i32,
-                input: org.clone(),
+                err_info: org.clone(),
                 ..Default::default()
             };
             p = p.split_off(1); // p++
@@ -41,11 +42,11 @@ fn tokenize(mut p: String) -> Vec<Token> {
 
         // Number
         if c.is_ascii_digit() {
-            let (n, mut remaining) = strtol(&p);
+            let (n, remaining) = strtol(&p);
             p = remaining;
             let token = Token {
                 ty: TokenType::Num as i32,
-                input: org.clone(),
+                err_info: org.clone(),
                 val: n.unwrap() as i32,
             };
             tokens.push(token);
@@ -58,10 +59,109 @@ fn tokenize(mut p: String) -> Vec<Token> {
     return tokens;
 }
 
+// fn fail(tokens: &Vec<Token>, i: usize) {
+//     eprint!("unexpected character: {:?}\n", tokens[i]);
+//     exit(1);
+// }
 
-fn fail(tokens: &Vec<Token>, i: usize) {
-    eprint!("unexpected character: {:?}\n", tokens[i]);
-    exit(1);
+// recursive-descendent parser
+enum NodeType {
+    Num,
+}
+
+#[derive(Default, Debug, Clone)]
+struct Node {
+    ty: i32,                // type
+    lhs: Option<Box<Node>>, // left-hand side
+    rhs: Option<Box<Node>>, // right-hand side
+    val: i32,               // Number literal
+}
+
+impl Node {
+    fn new(op: i32, lhs: Box<Node>, rhs: Box<Node>) -> Self {
+        Self {
+            ty: op,
+            lhs: Some(lhs),
+            rhs: Some(rhs),
+            ..Default::default()
+        }
+    }
+
+    fn new_num(val: i32) -> Self {
+        Self {
+            ty: NodeType::Num as i32,
+            val: val,
+            ..Default::default()
+        }
+    }
+
+    fn number(tokens: &Vec<Token>, pos: usize) -> Self {
+        if tokens[pos].ty == TokenType::Num as i32 {
+            let val = tokens[pos].val;
+            return Self::new_num(val);
+        }
+        panic!("number expected, but got {}", tokens[pos].err_info);
+    }
+
+    // gen the tree
+    pub fn expr(tokens: Vec<Token>) -> Self {
+        let mut pos = 0;
+        let mut lhs = Self::number(&tokens, pos);
+        pos += 1;
+        if tokens.len() == pos {
+            return lhs;
+        }
+
+        loop {
+            if tokens.len() == pos {
+                break;
+            }
+
+            let op = tokens[pos].ty;
+            if op != '+' as i32 && op != '-' as i32 {
+                println!("Break op: {}", op);
+                break;
+            }
+            pos += 1;
+            lhs = Self::new(op, Box::new(lhs), Box::new(Self::number(&tokens, pos)));
+            pos += 1;
+        }
+
+        if tokens.len() != pos {
+            panic!("stray token: {}", tokens[pos].err_info);
+        }
+        return lhs;
+    }
+
+    // Code generator
+    fn gen(self) -> String {
+        if self.ty == NodeType::Num as i32 {
+            let reg: &str;
+            unsafe {
+                if REG_IDX > REGS.len() {
+                    panic!("register exhausted");
+                }
+                reg = REGS[REG_IDX];
+                REG_IDX += 1;
+            }
+            print!("  mov {}, {}\n", reg, self.val);
+            return reg.into();
+        }
+
+        let dst = self.lhs.unwrap().gen();
+        let src = self.rhs.unwrap().gen();
+        match self.ty as u8 as char {
+            '+' => {
+                print!("  add {}, {}\n", dst, src);
+                return dst;
+            }
+            '-' => {
+                print!("  sub {}, {}\n", dst, src);
+                return dst;
+            }
+            _ => panic!("unknown operator"),
+        }
+    }
 }
 
 fn main() {
@@ -72,47 +172,15 @@ fn main() {
     }
 
     let tokens = tokenize(args.nth(1).unwrap());
+    let node = Node::expr(tokens);
 
     // Print the prologue
     print!(".intel_syntax noprefix\n");
     print!(".global main\n");
     print!("main:\n");
 
-
-    // verify that the given expression starts with a number,
-    // and then emit the first `mov` instruction.
-    if tokens[0].ty != TokenType::Num as i32 {
-        fail(&tokens, 0);
-    }
-    print!("  mov rax, {}\n", tokens[0].val);
-
-    // emit assembly as we consume the sequence of `+ <number>`
-    // or `- <number>`.
-    let mut i = 1;
-    while i != tokens.len() {
-        if tokens[i].ty == '+' as i32 {
-            i += 1;
-            if tokens[i].ty != TokenType::Num as i32 {
-                fail(&tokens, i);
-            }
-            print!("  add rax, {}\n", tokens[i].val);
-            i += 1;
-            continue;
-        }
-
-        if tokens[i].ty == '-' as i32 {
-            i += 1;
-            if tokens[i].ty != TokenType::Num as i32 {
-                fail(&tokens, i);
-            }
-            print!("  sub rax, {}\n", tokens[i].val);
-            i += 1;
-            continue;
-        }
-
-        fail(&tokens, i);
-    }
-
+    // generate code while descending the parse tree
+    print!("  mov rax, {}\n", node.gen());
     print!("  ret\n");
     return;
 }
