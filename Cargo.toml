@@ -1,0 +1,6 @@
+[package]
+name = "zodiac"
+version = "0.0.1"
+authors = ["maksyuki <maksyuki@126.com>"]
+
+[dependencies]
