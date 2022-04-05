@@ -8,3 +8,8 @@ The following acknowledgements pertain to this software license.
 These components are installed via [Makefile](./Makefile). You can check all the dependencies using the instructions from the Makefile.
 
 ## Libraries rewritten for TreeCore Compiler
+### r9cc
+* maintainer: [utam0k](https://github.com/utam0k)
+* License: [MIT](https://github.com/utam0k/r9cc/blob/master/LICENSE)
+* repo: https://github.com/utam0k/r9cc
+
