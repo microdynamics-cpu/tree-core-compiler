@@ -1,9 +1,15 @@
 use std::env;
 use std::process::exit;
+use std::sync::Mutex;
 use zodiac::strtol;
 
+#[macro_use]
+extern crate lazy_static;
+extern crate num;
+
+use num::traits::FromPrimitive;
+
 const REGS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
-static mut REG_IDX: usize = 0;
 
 enum TokenType {
     Num, // number literal
@@ -132,34 +138,205 @@ impl Node {
         }
         return lhs;
     }
+}
 
-    // Code generator
-    fn gen(self) -> String {
-        if self.ty == NodeType::Num as i32 {
-            let reg: &str;
-            unsafe {
-                if REG_IDX > REGS.len() {
-                    panic!("register exhausted");
-                }
-                reg = REGS[REG_IDX];
-                REG_IDX += 1;
-            }
-            print!("  mov {}, {}\n", reg, self.val);
-            return reg.into();
+// intermediate representation
+enum IRType {
+    IMM,
+    MOV,
+    RETURN,
+    KILL,
+    NOP,
+}
+
+impl FromPrimitive for IRType {
+    fn from_i64(n: i64) -> Option<Self> {
+        use IRType::*;
+        match n {
+            0 => Some(IMM),
+            1 => Some(MOV),
+            2 => Some(RETURN),
+            3 => Some(KILL),
+            4 => Some(NOP),
+            _ => None,
         }
+    }
 
-        let dst = self.lhs.unwrap().gen();
-        let src = self.rhs.unwrap().gen();
-        match self.ty as u8 as char {
-            '+' => {
-                print!("  add {}, {}\n", dst, src);
-                return dst;
+    fn from_u64(n: u64) -> Option<Self> {
+        use IRType::*;
+        match n {
+            0 => Some(IMM),
+            1 => Some(MOV),
+            2 => Some(RETURN),
+            3 => Some(KILL),
+            4 => Some(NOP),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct IR {
+    op: i32,
+    lhs: i32,
+    rhs: i32,
+}
+
+impl IR {
+    fn new(op: i32, lhs: i32, rhs: i32) -> Self {
+        Self {
+            op: op,
+            lhs: lhs,
+            rhs: rhs,
+        }
+    }
+}
+
+lazy_static! {
+    static ref INS: Mutex<Vec<IR>> = Mutex::new(vec![]);
+}
+
+static mut REGNO: usize = 0;
+
+fn gen_ir_sub(node: Node) -> i32 {
+    if node.ty == NodeType::Num as i32 {
+        let r: i32;
+        unsafe {
+            r = REGNO as i32;
+            REGNO += 1;
+        };
+        INS.lock()
+            .unwrap()
+            .push(IR::new(IRType::IMM as i32, r, node.val));
+        return r;
+    }
+
+    assert!(node.ty == '+' as i32 || node.ty == '-' as i32);
+
+    let lhs = gen_ir_sub(*node.lhs.unwrap());
+    let rhs = gen_ir_sub(*node.rhs.unwrap());
+
+    INS.lock().unwrap().push(IR::new(node.ty, lhs, rhs));
+    INS.lock()
+        .unwrap()
+        .push(IR::new(IRType::KILL as i32, rhs, 0));
+    return lhs;
+}
+
+fn gen_ir(node: Node) {
+    let r = gen_ir_sub(node);
+    INS.lock()
+        .unwrap()
+        .push(IR::new(IRType::RETURN as i32, r, 0));
+
+    for v in INS.lock().unwrap().iter() {
+        println!("op: {} lhs: {} rhs: {}", v.op, v.lhs, v.rhs);
+    }
+}
+
+lazy_static! {
+    static ref USED: Mutex<[bool; 8]> = Mutex::new([false; 8]);
+    static ref REG_MAP: Mutex<[i32; 1000]> = Mutex::new([-1; 1000]);
+}
+
+fn used_get(i: usize) -> bool {
+    USED.lock().unwrap()[i]
+}
+
+fn used_set(i: usize, val: bool) {
+    USED.lock().unwrap()[i] = val;
+}
+
+fn reg_map_get(i: usize) -> i32 {
+    REG_MAP.lock().unwrap()[i]
+}
+
+fn reg_map_set(i: usize, val: i32) {
+    REG_MAP.lock().unwrap()[i] = val;
+}
+
+fn alloc(ir_reg: usize) -> i32 {
+    if reg_map_get(ir_reg as usize) != -1 {
+        let r = reg_map_get(ir_reg);
+        assert!(used_get(r as usize));
+        return r;
+    }
+
+    for i in 0..REGS.len() {
+        if used_get(i) {
+            continue;
+        }
+        used_set(i, true);
+        reg_map_set(ir_reg, i as i32);
+        return i as i32;
+    }
+    panic!("register exhauseted");
+}
+
+fn kill(r: usize) {
+    assert!(used_get(r));
+    used_set(r, false); //NOTE: why not set -1 to the reg_map_set?
+}
+
+fn alloc_regs() {
+    use IRType::*;
+    let mut ins_alloced: Vec<IR> = vec![];
+
+    for mut ir in INS.lock().unwrap().clone() {
+        match IRType::from_i32(ir.op) {
+            Some(IMM) => ir.lhs = alloc(ir.lhs as usize),
+            Some(MOV) => {
+                ir.lhs = alloc(ir.lhs as usize);
+                ir.rhs = alloc(ir.rhs as usize);
             }
-            '-' => {
-                print!("  sub {}, {}\n", dst, src);
-                return dst;
+            Some(RETURN) => kill(reg_map_get(ir.lhs as usize) as usize),
+            Some(KILL) => {
+                kill(reg_map_get(ir.lhs as usize) as usize);
+                ir.op = IRType::NOP as i32;
             }
-            _ => panic!("unknown operator"),
+            None => match ir.op as u8 as char {
+                '+' | '-' => {
+                    ir.lhs = alloc(ir.lhs as usize);
+                    ir.rhs = alloc(ir.rhs as usize);
+                }
+                _ => panic!("unknow operator"),
+            },
+            _ => panic!("unknow operator"),
+        }
+        ins_alloced.push(ir);
+    }
+
+    for i in 0..ins_alloced.len() {
+        INS.lock().unwrap()[i] = ins_alloced[i].clone();
+    }
+}
+
+// code generator
+fn gen_x86() {
+    use IRType::*;
+    for ir in INS.lock().unwrap().clone() {
+        match IRType::from_i32(ir.op) {
+            Some(IMM) => print!("  mov {}, {}\n", REGS[ir.lhs as usize], ir.rhs),
+            Some(MOV) => print!(
+                "  mov {}, {}\n",
+                REGS[ir.lhs as usize], REGS[ir.rhs as usize]
+            ),
+            Some(RETURN) => {
+                print!("  mov rax, {}\n", REGS[ir.lhs as usize]);
+                print!("  ret\n");
+            }
+            Some(NOP) | Some(KILL) => (),
+            None => match ir.op as u8 as char {
+                '+' => print!(
+                    "  add {}, {}\n",
+                    REGS[ir.lhs as usize], REGS[ir.rhs as usize]
+                ),
+                '-' => print!(
+                    "  sub {}, {}\n",
+                    REGS[ir.lhs as usize], REGS[ir.rhs as usize]
+                ),
+                _ => panic!("unknow operator"),
+            },
         }
     }
 }
@@ -171,16 +348,17 @@ fn main() {
         return;
     }
 
+    // tokenize and parse
     let tokens = tokenize(args.nth(1).unwrap());
     let node = Node::expr(tokens);
+    gen_ir(node.clone());
+    alloc_regs();
 
     // Print the prologue
     print!(".intel_syntax noprefix\n");
     print!(".global main\n");
     print!("main:\n");
 
-    // generate code while descending the parse tree
-    print!("  mov rax, {}\n", node.gen());
-    print!("  ret\n");
+    gen_x86();
     return;
 }
