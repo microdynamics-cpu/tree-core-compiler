@@ -1,6 +1,6 @@
 
-use ir::{IRType, IR};
-use REGS;
+use crate::ir::{IRType, IR};
+use crate::REGS;
 
 pub fn gen_x86(irv: Vec<IR>) {
     use self::IRType::*;

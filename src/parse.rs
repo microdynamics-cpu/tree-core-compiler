@@ -1,4 +1,4 @@
-use token::{Token, TokenType};
+use crate::token::{Token, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {

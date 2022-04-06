@@ -1,6 +1,6 @@
 use std::env;
 
-extern crate zodiac;
+// extern crate zodiac;
 use zodiac::codegen::gen_x86;
 use zodiac::ir::gen_ir;
 use zodiac::parse::Node;

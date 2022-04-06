@@ -1,4 +1,4 @@
-use parse::{Node, NodeType};
+use crate::parse::{Node, NodeType};
 
 #[derive(Debug, Clone)]
 pub enum IRType {

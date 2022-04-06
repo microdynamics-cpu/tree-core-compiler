@@ -1,5 +1,5 @@
-use ir::{IRType, IR};
-use REGS_N;
+use crate::ir::{IRType, IR};
+use crate::REGS_N;
 
 use std::sync::Mutex;
 
