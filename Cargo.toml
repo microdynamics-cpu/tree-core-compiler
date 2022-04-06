@@ -5,3 +5,5 @@ authors = ["maksyuki <maksyuki@126.com>"]
 edition = "2021"
 
 [dependencies]
+lazy_static = "*"
+num = "*"
