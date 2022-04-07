@@ -6,6 +6,7 @@ pub enum NodeType {
     Plus,
     Minus,
     Mul,
+    Div,
 }
 
 impl From<TokenType> for NodeType {
@@ -15,6 +16,7 @@ impl From<TokenType> for NodeType {
             TokenType::Plus => NodeType::Plus,
             TokenType::Minus => NodeType::Minus,
             TokenType::Mul => NodeType::Mul,
+            TokenType::Div => NodeType::Div,
         }
     }
 }
@@ -59,7 +61,7 @@ impl Node {
         return Self::new_num(t.val);
     }
 
-    fn mul(tokens: &Vec<Token>, mut pos: usize) -> (Self, usize) {
+    fn mul_div(tokens: &Vec<Token>, mut pos: usize) -> (Self, usize) {
         let mut lhs = Self::number(&tokens, pos);
         pos += 1;
 
@@ -69,7 +71,7 @@ impl Node {
             }
 
             let op = tokens[pos].ty.clone();
-            if op != TokenType::Mul {
+            if op != TokenType::Mul && op != TokenType::Div {
                 return (lhs, pos);
             }
             pos += 1;
@@ -83,7 +85,7 @@ impl Node {
     }
 
     fn expr(tokens: &Vec<Token>, pos: usize) -> (Self, usize) {
-        let (mut lhs, mut pos) = Self::mul(&tokens, pos);
+        let (mut lhs, mut pos) = Self::mul_div(&tokens, pos);
 
         loop {
             if tokens.len() == pos {
@@ -95,7 +97,7 @@ impl Node {
                 return (lhs, pos);
             }
             pos += 1;
-            let (rhs, new_pos) = Self::mul(&tokens, pos);
+            let (rhs, new_pos) = Self::mul_div(&tokens, pos);
             pos = new_pos;
             lhs = Self::new(NodeType::from(op), Box::new(lhs), Box::new(rhs));
         }

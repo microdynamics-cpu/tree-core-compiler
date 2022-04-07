@@ -6,6 +6,7 @@ pub enum TokenType {
     Plus,
     Minus,
     Mul,
+    Div,
 }
 
 impl From<char> for TokenType {
@@ -14,6 +15,7 @@ impl From<char> for TokenType {
             '+' => TokenType::Plus,
             '-' => TokenType::Minus,
             '*' => TokenType::Mul,
+            '/' => TokenType::Div,
             e => panic!("unknow Token type: {}", e),
         }
     }
@@ -45,7 +47,7 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         }
 
         match c {
-            '+' | '-' | '*' => {
+            '+' | '-' | '*' | '/' => {
                 let token = Token {
                     ty: TokenType::from(c),
                     input: org.clone(),
