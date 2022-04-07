@@ -5,7 +5,7 @@ pub enum TokenType {
     Num,
     Plus,
     Minus,
-    // Mul,
+    Mul,
 }
 
 impl From<char> for TokenType {
@@ -13,7 +13,7 @@ impl From<char> for TokenType {
         match c {
             '+' => TokenType::Plus,
             '-' => TokenType::Minus,
-            // '*' => TokenType::Mul,
+            '*' => TokenType::Mul,
             e => panic!("unknow Token type: {}", e),
         }
     }
@@ -44,16 +44,21 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             continue;
         }
 
-        if c == '+' || c == '-' {
-            let token = Token {
-                ty: TokenType::from(c),
-                input: org.clone(),
-                ..Default::default()
-            };
-            p = p.split_off(1); // p++
-            tokens.push(token);
-            continue;
-        } else if c.is_ascii_digit() {
+        match c {
+            '+' | '-' | '*' => {
+                let token = Token {
+                    ty: TokenType::from(c),
+                    input: org.clone(),
+                    ..Default::default()
+                };
+                p = p.split_off(1); // p++
+                tokens.push(token);
+                continue;
+            }
+            _ => (),
+        }
+
+        if c.is_ascii_digit() {
             let (n, remaining) = strtol(&p);
             p = remaining;
             let token = Token {
@@ -68,6 +73,11 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         eprint!("cannot tokenize: {}\n", p);
         exit(1);
     }
+
+    // for v in tokens.iter() {
+    //     println!("[tk] type: {:?}, val: {}, input: {}", v.ty, v.val, v.input);
+    // }
+
     return tokens;
 }
 
