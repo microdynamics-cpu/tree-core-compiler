@@ -1,6 +1,6 @@
 <p align="center">
     <!-- <img width="200px" src="./.images/tree_core_logo.svg" align="center" alt="Tree Core CPU" /> -->
-    <h2 align="center">Zodiac: A tiny statically typed, compiled system programming language.</h2>
+    <h2 align="center">Zodiac: A Tiny Statically Typed, Compiled System Programming Language</h2>
 </p>
 <p align="center">
    <a href="https://github.com/microdynamics-cpu/tree-core-compiler/actions">
