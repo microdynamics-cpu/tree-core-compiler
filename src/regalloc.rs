@@ -5,7 +5,8 @@ use std::sync::Mutex;
 
 lazy_static! {
     static ref USED: Mutex<[bool; REGS_N]> = Mutex::new([false; REGS_N]);
-    static ref REG_MAP: Mutex<Vec<Option<usize>>> = Mutex::new(vec![None]);
+    // NOTE: need to specific the vec len(1000) explicitly
+    static ref REG_MAP: Mutex<Vec<Option<usize>>> = Mutex::new(vec![None; 1000]);
 }
 
 fn used_get(i: usize) -> bool {
@@ -18,6 +19,7 @@ fn used_set(i: usize, val: bool) {
 
 // NOTE: not init?
 fn reg_map_get(i: usize) -> Option<usize> {
+    // println!("idx: {}", i);
     REG_MAP.lock().unwrap().get(i).cloned().unwrap()
 }
 
@@ -27,6 +29,7 @@ fn reg_map_set(i: usize, val: usize) {
 
 fn alloc(ir_reg: usize) -> usize {
     if let Some(r) = reg_map_get(ir_reg) {
+        assert!(r <= REGS_N - 1, "reg map idx: {}", r);
         assert!(used_get(r));
         return r;
     }
@@ -54,6 +57,11 @@ pub fn alloc_regs(irv: Vec<IR>) -> Vec<IR> {
 
     unsafe {
         REG_MAP.lock().unwrap().set_len(irv_len);
+        // let mut cnt = 1;
+        // for v in REG_MAP.lock().unwrap().iter() {
+        //     println!("cnt: {} v: {}", cnt, v.unwrap_or_else(||999));
+        //     cnt = cnt + 1;
+        // }
     }
 
     for i in 0..irv_len {
