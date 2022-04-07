@@ -1,11 +1,11 @@
 use std::process::exit;
 
-// Tokenizer
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
-    Num, // Number literal
+    Num,
     Plus,
     Minus,
+    // Mul,
 }
 
 impl From<char> for TokenType {
@@ -13,6 +13,7 @@ impl From<char> for TokenType {
         match c {
             '+' => TokenType::Plus,
             '-' => TokenType::Minus,
+            // '*' => TokenType::Mul,
             e => panic!("unknow Token type: {}", e),
         }
     }
@@ -24,27 +25,25 @@ impl Default for TokenType {
     }
 }
 
-// Token type
 #[derive(Default, Debug)]
 pub struct Token {
-    pub ty: TokenType, // Token type
-    pub val: i32,      // Number literal
-    pub input: String, // Token string (for error reporting)
+    pub ty: TokenType, // token type
+    pub val: i32,      // number literal
+    pub input: String, // token string (for error reporting)
 }
 
 pub fn tokenize(mut p: String) -> Vec<Token> {
-    // Tokenized input is stored to this vec.
+    // tokenized input is stored to this vec
     let mut tokens: Vec<Token> = vec![];
 
     let org = p.clone();
     while let Some(c) = p.chars().nth(0) {
-        // Skip whitespce
+        // skip whitespce
         if c.is_whitespace() {
             p = p.split_off(1); // p++
             continue;
         }
 
-        // + or -
         if c == '+' || c == '-' {
             let token = Token {
                 ty: TokenType::from(c),
@@ -54,10 +53,7 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             p = p.split_off(1); // p++
             tokens.push(token);
             continue;
-        }
-
-        // Number
-        if c.is_ascii_digit() {
+        } else if c.is_ascii_digit() {
             let (n, remaining) = strtol(&p);
             p = remaining;
             let token = Token {
