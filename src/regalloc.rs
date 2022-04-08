@@ -17,7 +17,6 @@ fn used_set(i: usize, val: bool) {
     USED.lock().unwrap()[i] = val;
 }
 
-// NOTE: not init?
 fn reg_map_get(i: usize) -> Option<usize> {
     // println!("idx: {}", i);
     REG_MAP.lock().unwrap().get(i).cloned().unwrap()
