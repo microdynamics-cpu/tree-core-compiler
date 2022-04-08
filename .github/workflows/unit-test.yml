@@ -14,5 +14,5 @@ jobs:
         run: |
           chmod +x ./scripts/setup.sh
           make setup
-# chmod +x ./scripts/test.sh
-# make test
+          chmod +x ./scripts/test.sh
+          make test
