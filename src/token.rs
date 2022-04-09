@@ -1,5 +1,3 @@
-use std::process::exit;
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Num,
@@ -7,6 +5,8 @@ pub enum TokenType {
     Minus,
     Mul,
     Div,
+    Return,
+    Semicolon,
 }
 
 impl From<char> for TokenType {
@@ -16,7 +16,17 @@ impl From<char> for TokenType {
             '-' => TokenType::Minus,
             '*' => TokenType::Mul,
             '/' => TokenType::Div,
+            ';' => TokenType::Semicolon,
             e => panic!("unknow Token type: {}", e),
+        }
+    }
+}
+
+impl From<String> for TokenType {
+    fn from(s: String) -> Self {
+        match &*s {
+            "return" => TokenType::Return,
+            name => panic!("unknown identifier: {}", name),
         }
     }
 }
@@ -27,14 +37,14 @@ impl Default for TokenType {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Token {
     pub ty: TokenType, // token type
     pub val: i32,      // number literal
     pub input: String, // token string (for error reporting)
 }
 
-pub fn tokenize(mut p: String) -> Vec<Token> {
+pub fn scan(mut p: String) -> Vec<Token> {
     // tokenized input is stored to this vec
     let mut tokens: Vec<Token> = vec![];
 
@@ -47,7 +57,7 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         }
 
         match c {
-            '+' | '-' | '*' | '/' => {
+            '+' | '-' | '*' | '/' | ';' => {
                 let token = Token {
                     ty: TokenType::from(c),
                     input: org.clone(),
@@ -60,9 +70,29 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             _ => (),
         }
 
+        // keyword
+        if c.is_alphabetic() || c == '_' {
+            let mut name = String::new();
+            while let Some(c2) = p.chars().nth(0) {
+                p = p.split_off(1); // p++
+                if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == '_' {
+                    name.push(c2);
+                    continue;
+                }
+                break;
+            }
+            let token = Token {
+                ty: TokenType::from(name),
+                input: org.clone(),
+                ..Default::default()
+            };
+            tokens.push(token);
+            continue;
+        }
+
+
         if c.is_ascii_digit() {
-            let (n, remaining) = strtol(&p);
-            p = remaining;
+            let n = strtol(&mut p);
             let token = Token {
                 ty: TokenType::Num,
                 input: org.clone(),
@@ -72,37 +102,33 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             continue;
         }
 
-        eprint!("cannot tokenize: {}\n", p);
-        exit(1);
+        panic!("cannot tokenize: {}\n", p);
     }
 
     // for v in tokens.iter() {
     //     println!("[tk] type: {:?}, val: {}, input: {}", v.ty, v.val, v.input);
     // }
 
-    return tokens;
+    tokens
 }
 
-pub fn strtol(s: &String) -> (Option<i64>, String) {
+pub fn tokenize(p: String) -> Vec<Token> {
+    scan(p)
+}
+
+pub fn strtol(s: &mut String) -> Option<i64> {
     if s.is_empty() {
-        return (None, s.clone());
+        return None;
     }
 
     let mut pos = 0;
-    let mut remaining = s.clone();
-    let len = s.len();
-
-    while len != pos {
-        if !s.chars().nth(pos).unwrap().is_ascii_digit() {
+    for c in s.chars() {
+        if !c.is_ascii_digit() {
             break;
         }
         pos += 1;
     }
 
-    if len == pos {
-        (Some(remaining.parse::<i64>().unwrap()), "".into())
-    } else {
-        let t: String = remaining.drain(..pos).collect();
-        (Some(t.parse::<i64>().unwrap()), remaining)
-    }
+    let t: String = s.drain(..pos).collect();
+    Some(t.parse::<i64>().unwrap())
 }

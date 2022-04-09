@@ -37,19 +37,19 @@ check() {
 
 unit_test() {
     arch="$1"
-    check 0 0 ${arch}
-    check 42 42 ${arch}
-    check 21 '5+20-4' ${arch}
-    check 41 ' 12 + 34 -5 ' ${arch}
-    check 36 '1+2+3+4+5+6+7+8' ${arch}
-    check 153 '1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17' ${arch}
-    check 10 '2*3+4' ${arch}
-    check 14 '2+3*4' ${arch}
-    check 26 '2*3+4*5' ${arch}
-    check 5 '50/10' ${arch}
-    check 9 '6*3/2' ${arch}
-    check 6 '1+10*4/8' ${arch}
-    check 103 '25*4+24/8' ${arch}
+    check 0 'return 0;' ${arch}
+    check 42 'return 42;' ${arch}
+    check 21 '1+2; return 5+20-4;' ${arch}
+    check 41 'return  12 + 34 -5 ;' ${arch}
+    check 36 'return 1+2+3+4+5+6+7+8;' ${arch}
+    check 153 'return 1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17;' ${arch}
+    check 10 'return 2*3+4;' ${arch}
+    check 14 'return 2+3*4;' ${arch}
+    check 26 'return 2*3+4*5;' ${arch}
+    check 5 'return 50/10;' ${arch}
+    check 9 'return 6*3/2;' ${arch}
+    check 6 'return 1+10*4/8;' ${arch}
+    check 103 'return 25*4+24/8;' ${arch}
     # echo OK
 }
 

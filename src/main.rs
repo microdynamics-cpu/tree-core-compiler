@@ -18,13 +18,13 @@ fn main() {
     // println!("arch: {}, data:{}", arch, data);
     let tokens = tokenize(data.to_string());
     let node = Node::parse(&tokens);
-    let irv = gen_ir(node);
-    let irv_alloced = alloc_regs(irv);
+    let mut irv = gen_ir(node);
+    alloc_regs(&mut irv);
 
     if arch == "x" {    
-        gen_x86(irv_alloced);
+        gen_x86(irv);
     } else if arch == "r" {
-        gen_riscv(irv_alloced);
+        gen_riscv(irv);
     } else {
         eprint!("error arch param\n");
         return;
