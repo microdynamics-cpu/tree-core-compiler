@@ -50,6 +50,8 @@ unit_test() {
     check 9 'return 6*3/2;' ${arch}
     check 6 'return 1+10*4/8;' ${arch}
     check 103 'return 25*4+24/8;' ${arch}
+    check 2 'a=2; return a;' ${arch}
+    check 10 'a=2; b=3+2; return a*b;' ${arch}
     # echo OK
 }
 
