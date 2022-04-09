@@ -1,114 +1,134 @@
 use crate::token::{Token, TokenType};
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum NodeType {
-    Num,
-    Plus,
-    Minus,
-    Mul,
-    Div,
-}
-
-impl From<TokenType> for NodeType {
-    fn from(token_type: TokenType) -> Self {
-        match token_type {
-            TokenType::Num => NodeType::Num,
-            TokenType::Plus => NodeType::Plus,
-            TokenType::Minus => NodeType::Minus,
-            TokenType::Mul => NodeType::Mul,
-            TokenType::Div => NodeType::Div,
+macro_rules! matches(
+    ($e:expr, $p:pat) => (
+        match $e {
+            $p => true,
+            _ => false
         }
+    )
+);
+
+
+fn consume(tokens: &Vec<Token>, ty: TokenType, pos: &mut usize) -> bool {
+    let t = &tokens[*pos];
+    if t.ty != ty {
+        return false;
     }
+    *pos += 1;
+    return true;
 }
 
-impl Default for NodeType {
-    fn default() -> Self {
-        NodeType::Num
-    }
+#[derive(Debug, Clone)]
+pub enum NodeType {
+    Num(i32), // Number literal
+    Ident(String),
+    BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
+    Return(Box<Node>), // stmt
+    ExprStmt(Box<Node>), // expresson stmt
+    CompStmt(Vec<Node>), // Compound statement
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Node {
-    pub ty: NodeType,           // type
-    pub lhs: Option<Box<Node>>, // left-hand side. If none, node is number etc
-    pub rhs: Option<Box<Node>>, // right-hand side
-    pub val: i32,               // number literal
+    pub ty: NodeType, // Node type
 }
 
 impl Node {
-    fn new(op: NodeType, lhs: Box<Node>, rhs: Box<Node>) -> Self {
-        Self {
-            ty: op,
-            lhs: Some(lhs),
-            rhs: Some(rhs),
-            ..Default::default()
+    fn new(op: NodeType) -> Self {
+        Self { ty: op }
+    }
+
+    fn term(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let t = &tokens[*pos];
+        *pos += 1;
+        match t.ty {
+            TokenType::Num(val) => return Self::new(NodeType::Num(val)),
+            TokenType::Ident(ref name) => Self::new(NodeType::Ident(name.clone())),
+            _ => panic!("number expected, but got {}", t.input),
         }
     }
 
-    fn new_num(val: i32) -> Self {
-        Self {
-            ty: NodeType::Num,
-            val: val,
-            ..Default::default()
-        }
-    }
-
-    fn number(tokens: &Vec<Token>, pos: usize) -> Self {
-        let t = &tokens[pos];
-        if t.ty != TokenType::Num {
-            panic!("number expected, but got {}", t.input);
-        }
-        return Self::new_num(t.val);
-    }
-
-    fn mul_div(tokens: &Vec<Token>, mut pos: usize) -> (Self, usize) {
-        let mut lhs = Self::number(&tokens, pos);
-        pos += 1;
+    fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let mut lhs = Self::term(&tokens, pos);
 
         loop {
-            if tokens.len() == pos {
-                return (lhs, pos);
+            if tokens.len() == *pos {
+                return lhs;
             }
 
-            let op = tokens[pos].ty.clone();
+            let op = tokens[*pos].ty.clone();
             if op != TokenType::Mul && op != TokenType::Div {
-                return (lhs, pos);
+                return lhs;
             }
-            pos += 1;
-            lhs = Self::new(
-                NodeType::from(op),
+            *pos += 1;
+            lhs = Self::new(NodeType::BinOp(
+                op,
                 Box::new(lhs),
-                Box::new(Self::number(&tokens, pos)),
-            );
-            pos += 1;
+                Box::new(Self::term(&tokens, pos)),
+            ));
         }
     }
 
-    fn expr(tokens: &Vec<Token>, pos: usize) -> (Self, usize) {
-        let (mut lhs, mut pos) = Self::mul_div(&tokens, pos);
+    fn expr(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let mut lhs = Self::mul(&tokens, pos);
 
         loop {
-            if tokens.len() == pos {
-                return (lhs, pos);
+            if tokens.len() == *pos {
+                return lhs;
             }
 
-            let op = tokens[pos].ty.clone();
+            let op = tokens[*pos].ty.clone();
             if op != TokenType::Plus && op != TokenType::Minus {
-                return (lhs, pos);
+                return lhs;
             }
-            pos += 1;
-            let (rhs, new_pos) = Self::mul_div(&tokens, pos);
-            pos = new_pos;
-            lhs = Self::new(NodeType::from(op), Box::new(lhs), Box::new(rhs));
+            *pos += 1;
+            let rhs = Self::mul(&tokens, pos);
+            lhs = Self::new(NodeType::BinOp(op, Box::new(lhs), Box::new(rhs)));
+        }
+    }
+
+    fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let lhs = Self::expr(tokens, pos);
+        if consume(tokens, TokenType::Equal, pos) {
+            return Self::new(NodeType::BinOp(
+                TokenType::Equal,
+                Box::new(lhs),
+                Box::new(Self::expr(tokens, pos)),
+            ));
+        }
+        return lhs;
+    }
+
+    fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let mut stmts = vec![];
+        loop {
+            if tokens.len() == *pos {
+                let node = Self::new(NodeType::CompStmt(stmts));
+                return node;
+            }
+
+            let e: Node;
+            match tokens[*pos].ty {
+                TokenType::Return => {
+                    *pos += 1;
+                    let expr = Self::assign(&tokens, pos);
+                    e = Self::new(NodeType::Return(Box::new(expr)));
+                }
+                _ => {
+                    let expr = Self::assign(&tokens, pos);
+                    e = Self::new(NodeType::ExprStmt(Box::new(expr)));
+                }
+            }
+            stmts.push(e);
+            matches!(tokens[*pos].ty, TokenType::Semicolon); // check if the stmt is right
+            *pos += 1;
         }
     }
 
     pub fn parse(tokens: &Vec<Token>) -> Self {
-        let (node, pos) = Self::expr(tokens, 0);
-
-        if tokens.len() != pos {
-            panic!("stray token: {}", tokens[pos].input);
-        }
-        return node;
+        let mut pos = 0;
+        let node = Self::stmt(tokens, &mut pos);
+        node
     }
 }
